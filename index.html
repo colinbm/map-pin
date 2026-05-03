@@ -960,6 +960,15 @@ function createPanZoom(container, inner, img, onTap) {
   }, { passive: false });
 
   container.addEventListener('touchend', e => {
+    // When a pinch ends and one finger remains, the single-touch pan reference
+    // (startX/startOX) is stale from before the pinch changed ox/oy. Reset it
+    // to the current state so the remaining finger doesn't jump the view.
+    if (e.touches.length === 1) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startOX = ox;
+      startOY = oy;
+    }
     if (e.changedTouches.length === 1 && e.touches.length === 0) {
       const dx = e.changedTouches[0].clientX - touchStartX;
       const dy = e.changedTouches[0].clientY - touchStartY;
