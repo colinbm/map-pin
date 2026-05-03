@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MapPin — Custom Map Navigator</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3248;
+  --accent: #4f8ef7;
+  --accent2: #7c6af7;
+  --success: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --text: #e8eaf0;
+  --text2: #8890a8;
+  --radius: 10px;
+  --tab-h: 56px;
+  --subtab-h: 44px;
+  --header-h: 52px;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ── Header ── */
+#header {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+#header h1 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: var(--text);
+}
+#gps-badge {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text2);
+}
+#gps-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text2);
+  flex-shrink: 0;
+}
+#gps-dot.good { background: var(--success); }
+#gps-dot.ok   { background: var(--warn); }
+#gps-dot.bad  { background: var(--danger); }
+
+/* ── Tabs ── */
+#tabs {
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  height: var(--tab-h);
+  flex-shrink: 0;
+  order: 99;
+}
+.tab-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  background: none;
+  color: var(--text2);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color .15s;
+  padding-bottom: 2px;
+}
+.tab-btn svg { width: 22px; height: 22px; }
+.tab-btn.active { color: var(--accent); }
+
+/* ── Panels ── */
+.panel {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+  flex-direction: column;
+}
+.panel.active { display: flex; }
+
+/* ── Sub-tabs (Calibrate) ── */
+#subtabs {
+  display: flex;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  height: var(--subtab-h);
+  flex-shrink: 0;
+}
+.subtab-btn {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.subtab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.subpanel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.subpanel.active { display: flex; }
+
+/* ── Setup Panel ── */
+#setup-panel {
+  padding: 20px 16px;
+  overflow-y: auto;
+  gap: 20px;
+}
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  background: var(--surface2);
+}
+.upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(79,142,247,.07); }
+.upload-zone .icon { font-size: 40px; margin-bottom: 12px; }
+.upload-zone p { color: var(--text2); font-size: 14px; }
+.upload-zone strong { color: var(--text); display: block; font-size: 16px; margin-bottom: 6px; }
+#file-input { display: none; }
+#map-preview-wrap {
+  display: none;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #000;
+}
+#map-preview-wrap img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.preview-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  background: var(--surface2);
+}
+.info-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.info-box h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.info-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+.info-row span { font-size: 13px; color: var(--text2); }
+.info-row strong { font-size: 13px; color: var(--text); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-success { background: var(--success); color: #000; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-sm { padding: 7px 12px; font-size: 13px; }
+.btn-full { width: 100%; }
+
+/* ── Pan/zoom map container ── */
+.map-container {
+  position: relative;
+  overflow: hidden;
+  background: #111;
+  cursor: grab;
+  flex: 1;
+  touch-action: none;
+}
+.map-container.panning { cursor: grabbing; }
+.map-inner {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.map-inner img {
+  display: block;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* ── Calibration pins ── */
+.cal-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.cal-pin .pin-head {
+  width: 20px; height: 20px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 2px solid #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-pin .pin-head::after {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+.cal-pin.gps .pin-head { background: var(--accent); }
+.cal-pin.refmap .pin-head { background: var(--accent2); }
+.cal-pin .pin-label {
+  margin-top: 2px;
+  font-size: 10px;
+  background: rgba(0,0,0,.7);
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* ── Walk & Mark subpanel ── */
+#walkmark-subpanel {
+  position: relative;
+}
+#walkmark-toolbar {
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+#walkmark-state {
+  font-size: 13px;
+  color: var(--text2);
+  flex: 1;
+}
+#walkmark-state.pending { color: var(--warn); }
+#walkmark-state.tap { color: var(--accent); }
+
+/* ── Ref Map subpanel ── */
+#refmap-subpanel {
+  display: flex;
+  flex-direction: column;
+}
+#refmap-upload-map {
+  flex: none;
+  min-height: 0;
+}
+#refmap-leaflet-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-top: 3px solid var(--accent2);
+}
+#refmap-leaflet { width: 100%; height: 100%; }
+#refmap-state-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  background: rgba(15,17,23,.88);
+  color: var(--text2);
+  font-size: 12px;
+  padding: 5px 10px;
+  z-index: 400;
+  pointer-events: none;
+}
+#refmap-state-bar.step1 { color: var(--accent); }
+#refmap-state-bar.step2 { color: var(--accent2); }
+
+/* ── Points list ── */
+#points-subpanel {
+  overflow-y: auto;
+  padding: 12px;
+  gap: 8px;
+}
+.point-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 12px 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.point-card .pt-badge {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+  margin-top: 1px;
+}
+.point-card.gps .pt-badge { background: rgba(79,142,247,.2); color: var(--accent); }
+.point-card.refmap .pt-badge { background: rgba(124,106,247,.2); color: var(--accent2); }
+.point-card .pt-info { flex: 1; min-width: 0; }
+.point-card .pt-label { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.point-card .pt-coords { font-size: 11px; color: var(--text2); font-family: monospace; line-height: 1.6; }
+.point-card .pt-acc {
+  font-size: 11px; padding: 1px 5px; border-radius: 4px; display: inline-block; margin-top: 3px;
+}
+.pt-acc.good { background: rgba(52,211,153,.15); color: var(--success); }
+.pt-acc.ok   { background: rgba(251,191,36,.15); color: var(--warn); }
+.pt-acc.bad  { background: rgba(248,113,113,.15); color: var(--danger); }
+.no-points {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+/* ── Navigate ── */
+#navigate-panel { position: relative; }
+#nav-map-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #111;
+  cursor: grab;
+  touch-action: none;
+}
+#nav-map-container.panning { cursor: grabbing; }
+#nav-map-inner {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+#nav-map-inner img { display: block; max-width: none; user-select: none; -webkit-user-drag: none; }
+#nav-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+#nav-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+#nav-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(15,17,23,.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 12px;
+  z-index: 10;
+  min-width: 140px;
+}
+#nav-status .acc-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+#calib-needed {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--bg);
+  color: var(--text2);
+  font-size: 15px;
+  text-align: center;
+  padding: 30px;
+  z-index: 20;
+}
+#calib-needed h2 { font-size: 20px; color: var(--text); margin-bottom: 4px; }
+
+/* ── GPS dot on navigate ── */
+#gps-marker {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.gps-accuracy-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(79,142,247,.4);
+  background: rgba(79,142,247,.07);
+  transform: translate(-50%, -50%);
+  top: 50%; left: 50%;
+}
+.gps-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(79,142,247,.7);
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ── Toast ── */
+#toast-container {
+  position: fixed;
+  bottom: calc(var(--tab-h) + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity .2s, transform .2s;
+  max-width: calc(100vw - 40px);
+  text-align: center;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.success { border-color: var(--success); color: var(--success); }
+.toast.error   { border-color: var(--danger);  color: var(--danger); }
+.toast.info    { border-color: var(--accent);  color: var(--accent); }
+
+/* ── Pending pin crosshair ── */
+.pending-pin {
+  position: absolute;
+  width: 24px; height: 24px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+}
+.pending-pin::before, .pending-pin::after {
+  content: '';
+  position: absolute;
+  background: var(--warn);
+}
+.pending-pin::before { width: 2px; height: 100%; left: 50%; margin-left: -1px; top: 0; }
+.pending-pin::after  { height: 2px; width: 100%; top: 50%; margin-top: -1px; left: 0; }
+
+/* ── Misc ── */
+.sep { height: 1px; background: var(--border); margin: 4px 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.text-muted { color: var(--text2); }
+.flex-row { display: flex; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)">
+      <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+    </svg>
+    <h1>MapPin</h1>
+    <div id="gps-badge">
+      <div id="gps-dot"></div>
+      <span id="gps-acc-text">No GPS</span>
+    </div>
+  </div>
+
+  <!-- SETUP PANEL -->
+  <div id="setup-panel" class="panel active">
+    <div id="upload-zone" class="upload-zone">
+      <div class="icon">🗺️</div>
+      <strong>Upload Map Image</strong>
+      <p>Tap to select a photo or scan of your map</p>
+    </div>
+    <input type="file" id="file-input" accept="image/*">
+
+    <div id="map-preview-wrap">
+      <img id="map-preview-img" src="" alt="Map preview">
+      <div class="preview-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-replace-map">Replace</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-primary btn-sm" id="btn-go-calibrate">Calibrate →</button>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <h3>Status</h3>
+      <div class="info-row"><span>Map image</span><strong id="status-map">Not loaded</strong></div>
+      <div class="info-row"><span>Control points</span><strong id="status-points">0</strong></div>
+      <div class="info-row"><span>Calibration</span><strong id="status-calib">Not ready</strong></div>
+    </div>
+
+    <div class="info-box">
+      <h3>How to use</h3>
+      <p style="font-size:13px; color:var(--text2); line-height:1.7">
+        1. Upload a map image above<br>
+        2. Add 3+ control points in <strong>Calibrate</strong><br>
+        3. Use <strong>Navigate</strong> for live GPS tracking
+      </p>
+    </div>
+  </div>
+
+  <!-- CALIBRATE PANEL -->
+  <div id="calibrate-panel" class="panel">
+    <div id="subtabs">
+      <button class="subtab-btn active" data-subtab="walkmark">Walk & Mark</button>
+      <button class="subtab-btn" data-subtab="refmap">Ref Map</button>
+      <button class="subtab-btn" data-subtab="points">Points (<span id="points-count">0</span>)</button>
+    </div>
+
+    <!-- Walk & Mark -->
+    <div id="walkmark-subpanel" class="subpanel active">
+      <div id="walkmark-toolbar">
+        <div id="walkmark-state">Walk to a recognisable point, then mark it</div>
+        <button class="btn btn-primary btn-sm" id="btn-mark-location">Mark My Location</button>
+        <button class="btn btn-ghost btn-sm" id="btn-mark-cancel" style="display:none">Cancel</button>
+      </div>
+      <div id="walkmark-map" class="map-container">
+        <div class="map-inner" id="walkmark-inner">
+          <img id="walkmark-img" src="" alt="Map">
+        </div>
+      </div>
+      <div id="walkmark-nomap" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:14px;padding:20px;text-align:center">
+        Upload a map image in Setup first
+      </div>
+    </div>
+
+    <!-- Ref Map -->
+    <div id="refmap-subpanel" class="subpanel">
+      <div style="height:40%;position:relative;min-height:120px;" id="refmap-upload-map">
+        <div class="map-container" id="refmap-map-container" style="height:100%;">
+          <div class="map-inner" id="refmap-map-inner">
+            <img id="refmap-img" src="" alt="Map">
+          </div>
+        </div>
+        <div id="refmap-nomap" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:13px;text-align:center;padding:16px;background:var(--bg)">
+          Upload a map image in Setup first
+        </div>
+      </div>
+      <div id="refmap-leaflet-wrap" style="flex:1;min-height:0;position:relative;border-top:3px solid var(--accent2);">
+        <div id="refmap-leaflet"></div>
+        <div id="refmap-state-bar">Step 1: Tap a point on your map above</div>
+      </div>
+    </div>
+
+    <!-- Points List -->
+    <div id="points-subpanel" class="subpanel" style="display:flex;flex-direction:column;">
+      <div id="points-list-wrap" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;">
+        <div class="no-points" id="no-points-msg">No control points yet.<br>Add them in Walk & Mark or Ref Map.</div>
+      </div>
+      <div style="padding:12px;border-top:1px solid var(--border);background:var(--surface2);">
+        <button class="btn btn-danger btn-sm" id="btn-clear-points" style="width:100%">Clear All Points</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVIGATE PANEL -->
+  <div id="navigate-panel" class="panel" style="position:relative;">
+    <div id="calib-needed">
+      <h2>Not Ready</h2>
+      <p id="calib-needed-msg">Upload a map and add at least 3 control points to start navigating.</p>
+      <button class="btn btn-primary" id="btn-go-calibrate2">Go to Calibrate</button>
+    </div>
+    <div id="nav-map-container" class="map-container" style="position:absolute;inset:0;">
+      <div id="nav-map-inner" class="map-inner">
+        <img id="nav-img" src="" alt="Map">
+      </div>
+      <svg id="nav-overlay"></svg>
+      <div id="gps-marker">
+        <div class="gps-accuracy-ring" id="acc-ring"></div>
+        <div class="gps-dot"></div>
+      </div>
+    </div>
+    <div id="nav-status">
+      <div style="font-size:13px;font-weight:600">Live Navigation</div>
+      <div class="acc-row">
+        <div id="nav-gps-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text2);flex-shrink:0;"></div>
+        <span id="nav-acc-text" style="font-size:11px;color:var(--text2)">Acquiring GPS…</span>
+      </div>
+    </div>
+    <div id="nav-controls">
+      <button class="btn btn-primary btn-sm" id="btn-center-me" style="border-radius:50%;width:46px;height:46px;padding:0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>
+          <line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom tabs -->
+  <div id="tabs">
+    <button class="tab-btn active" data-tab="setup">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+      </svg>
+      Setup
+    </button>
+    <button class="tab-btn" data-tab="calibrate">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      </svg>
+      Calibrate
+    </button>
+    <button class="tab-btn" data-tab="navigate">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+      </svg>
+      Navigate
+    </button>
+  </div>
+
+</div>
+<div id="toast-container"></div>
+
+<script>
+'use strict';
+
+// ── IndexedDB ──────────────────────────────────────────────────────────────────
+const DB_NAME = 'mappindb', DB_VER = 1, STORE = 'kv';
+
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function dbSet(key, val) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(val, key);
+    tx.oncomplete = res;
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+
+async function dbGet(key) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(key);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function dbDel(key) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = res;
+    tx.onerror = e => rej(e.target.error);
+  });
+}
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let mapBlob = null;
+let mapObjectURL = null;
+let points = [];
+let gpsPos = null;
+let gpsWatchId = null;
+
+const LS_KEY = 'mappin_points';
+
+function loadPoints() {
+  try { points = JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { points = []; }
+}
+
+function savePoints() {
+  localStorage.setItem(LS_KEY, JSON.stringify(points));
+}
+
+// ── Matrix math ───────────────────────────────────────────────────────────────
+function matMul(A, B) {
+  const rows = A.length, cols = B[0].length, inner = B.length;
+  const C = Array.from({length: rows}, () => new Array(cols).fill(0));
+  for (let i = 0; i < rows; i++)
+    for (let j = 0; j < cols; j++)
+      for (let k = 0; k < inner; k++)
+        C[i][j] += A[i][k] * B[k][j];
+  return C;
+}
+
+function matT(A) {
+  const rows = A.length, cols = A[0].length;
+  const B = Array.from({length: cols}, () => new Array(rows).fill(0));
+  for (let i = 0; i < rows; i++)
+    for (let j = 0; j < cols; j++)
+      B[j][i] = A[i][j];
+  return B;
+}
+
+function det3(m) {
+  return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+        -m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+        +m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+}
+
+function inv3(m) {
+  const d = det3(m);
+  if (Math.abs(d) < 1e-14) return null;
+  const inv = Array.from({length:3}, ()=>new Array(3).fill(0));
+  inv[0][0] = (m[1][1]*m[2][2]-m[1][2]*m[2][1])/d;
+  inv[0][1] = (m[0][2]*m[2][1]-m[0][1]*m[2][2])/d;
+  inv[0][2] = (m[0][1]*m[1][2]-m[0][2]*m[1][1])/d;
+  inv[1][0] = (m[1][2]*m[2][0]-m[1][0]*m[2][2])/d;
+  inv[1][1] = (m[0][0]*m[2][2]-m[0][2]*m[2][0])/d;
+  inv[1][2] = (m[0][2]*m[1][0]-m[0][0]*m[1][2])/d;
+  inv[2][0] = (m[1][0]*m[2][1]-m[1][1]*m[2][0])/d;
+  inv[2][1] = (m[0][1]*m[2][0]-m[0][0]*m[2][1])/d;
+  inv[2][2] = (m[0][0]*m[1][1]-m[0][1]*m[1][0])/d;
+  return inv;
+}
+
+function buildTransform(pts) {
+  if (pts.length < 3) return null;
+  const A = pts.map(p => [p.lat, p.lng, 1]);
+  const bx = pts.map(p => [p.px]);
+  const by = pts.map(p => [p.py]);
+  const AT = matT(A);
+  const ATA = matMul(AT, A);
+  const inv = inv3(ATA);
+  if (!inv) return null;
+  const coeff = matMul(inv, AT);
+  const cx = matMul(coeff, bx).map(r => r[0]);
+  const cy = matMul(coeff, by).map(r => r[0]);
+  return (lat, lng) => ({
+    x: cx[0]*lat + cx[1]*lng + cx[2],
+    y: cy[0]*lat + cy[1]*lng + cy[2]
+  });
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function toast(msg, type = '', duration = 2800) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  const container = document.getElementById('toast-container');
+  container.appendChild(el);
+  requestAnimationFrame(() => { requestAnimationFrame(() => { el.classList.add('show'); }); });
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 250);
+  }, duration);
+}
+
+// ── Pan/Zoom ───────────────────────────────────────────────────────────────────
+function createPanZoom(container, inner, img, onTap) {
+  let scale = 1, ox = 0, oy = 0;
+  let dragging = false, startX, startY, startOX, startOY;
+  let lastTouchDist = null, lastTouchMidX, lastTouchMidY;
+  let touchMoved = false, touchStartX, touchStartY;
+  let imgW = 0, imgH = 0;
+
+  function applyTransform() {
+    inner.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`;
+  }
+
+  function fit() {
+    const cw = container.clientWidth, ch = container.clientHeight;
+    if (!imgW || !imgH) return;
+    const s = Math.min(cw / imgW, ch / imgH);
+    scale = s;
+    ox = (cw - imgW * s) / 2;
+    oy = (ch - imgH * s) / 2;
+    applyTransform();
+  }
+
+  function centerOn(ix, iy) {
+    const cw = container.clientWidth, ch = container.clientHeight;
+    ox = cw / 2 - ix * scale;
+    oy = ch / 2 - iy * scale;
+    applyTransform();
+  }
+
+  function containerToImage(cx, cy) {
+    return { x: (cx - ox) / scale, y: (cy - oy) / scale };
+  }
+
+  function imageToContainer(ix, iy) {
+    return { x: ix * scale + ox, y: iy * scale + oy };
+  }
+
+  function clampAndApply() {
+    applyTransform();
+  }
+
+  function setupImage() {
+    imgW = img.naturalWidth;
+    imgH = img.naturalHeight;
+    fit();
+  }
+
+  if (img.complete && img.naturalWidth) {
+    setupImage();
+  } else {
+    img.addEventListener('load', setupImage, { once: true });
+  }
+
+  // Mouse
+  container.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startOX = ox; startOY = oy;
+    container.classList.add('panning');
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    ox = startOX + (e.clientX - startX);
+    oy = startOY + (e.clientY - startY);
+    clampAndApply();
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (!dragging) return;
+    const moved = Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
+    dragging = false;
+    container.classList.remove('panning');
+    if (moved < 4 && onTap) {
+      const rect = container.getBoundingClientRect();
+      onTap(containerToImage(e.clientX - rect.left, e.clientY - rect.top));
+    }
+  });
+
+  container.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    const newScale = Math.max(0.05, Math.min(50, scale * factor));
+    ox = cx - (cx - ox) * (newScale / scale);
+    oy = cy - (cy - oy) * (newScale / scale);
+    scale = newScale;
+    clampAndApply();
+  }, { passive: false });
+
+  // Touch
+  container.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      touchMoved = false;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      startOX = ox; startOY = oy;
+    } else if (e.touches.length === 2) {
+      lastTouchDist = Math.hypot(
+        e.touches[1].clientX - e.touches[0].clientX,
+        e.touches[1].clientY - e.touches[0].clientY
+      );
+      lastTouchMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      lastTouchMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  container.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (Math.abs(dx) + Math.abs(dy) > 4) touchMoved = true;
+      ox = startOX + dx;
+      oy = startOY + dy;
+      clampAndApply();
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[1].clientX - e.touches[0].clientX,
+        e.touches[1].clientY - e.touches[0].clientY
+      );
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const rect = container.getBoundingClientRect();
+      const cx = midX - rect.left, cy = midY - rect.top;
+      const factor = dist / lastTouchDist;
+      const newScale = Math.max(0.05, Math.min(50, scale * factor));
+      ox = cx - (cx - ox) * (newScale / scale) + (midX - lastTouchMidX);
+      oy = cy - (cy - oy) * (newScale / scale) + (midY - lastTouchMidY);
+      scale = newScale;
+      lastTouchDist = dist;
+      lastTouchMidX = midX;
+      lastTouchMidY = midY;
+      clampAndApply();
+    }
+  }, { passive: false });
+
+  container.addEventListener('touchend', e => {
+    if (e.changedTouches.length === 1 && e.touches.length === 0) {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dx) + Math.abs(dy) < 8 && onTap) {
+        const rect = container.getBoundingClientRect();
+        const cx = e.changedTouches[0].clientX - rect.left;
+        const cy = e.changedTouches[0].clientY - rect.top;
+        onTap(containerToImage(cx, cy));
+      }
+    }
+    lastTouchDist = null;
+  }, { passive: false });
+
+  window.addEventListener('resize', fit);
+
+  return { fit, centerOn, containerToImage, imageToContainer, getState: () => ({ scale, ox, oy }) };
+}
+
+// ── Pins overlay ───────────────────────────────────────────────────────────────
+function makePinsOverlay(container, pz) {
+  const pins = [];
+
+  function render() {
+    pins.forEach(p => {
+      const { x, y } = pz.imageToContainer(p.ix, p.iy);
+      p.el.style.left = x + 'px';
+      p.el.style.top  = y + 'px';
+    });
+  }
+
+  function addPin(ix, iy, label, method) {
+    const el = document.createElement('div');
+    el.className = `cal-pin ${method}`;
+    el.innerHTML = `<div class="pin-head"></div><div class="pin-label">${label}</div>`;
+    el.style.position = 'absolute';
+    container.appendChild(el);
+    const pin = { ix, iy, label, method, el };
+    pins.push(pin);
+    render();
+    return pin;
+  }
+
+  function removeAll() {
+    pins.forEach(p => p.el.remove());
+    pins.length = 0;
+  }
+
+  function refresh() {
+    removeAll();
+    points.forEach((pt, i) => addPin(pt.px, pt.py, pt.label || `P${i+1}`, pt.method));
+    render();
+  }
+
+  container.addEventListener('scroll-update', render);
+
+  const origGetState = pz.getState;
+  const origFit = pz.fit;
+
+  return { render, addPin, removeAll, refresh };
+}
+
+// ── GPS ────────────────────────────────────────────────────────────────────────
+function startGPS() {
+  if (!navigator.geolocation) return;
+  if (gpsWatchId !== null) return;
+  gpsWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      gpsPos = pos;
+      updateGPSBadge(pos.coords.accuracy);
+      updateNavGPS();
+    },
+    err => {
+      console.warn('GPS error:', err.message);
+      updateGPSBadge(null);
+    },
+    { enableHighAccuracy: true, maximumAge: 0 }
+  );
+}
+
+function updateGPSBadge(acc) {
+  const dot = document.getElementById('gps-dot');
+  const txt = document.getElementById('gps-acc-text');
+  if (acc === null) {
+    dot.className = '';
+    txt.textContent = 'No GPS';
+    return;
+  }
+  txt.textContent = `±${Math.round(acc)}m`;
+  if (acc < 10)      { dot.className = 'good'; }
+  else if (acc < 30) { dot.className = 'ok'; }
+  else               { dot.className = 'bad'; }
+}
+
+// ── Tab routing ───────────────────────────────────────────────────────────────
+let activeTab = 'setup';
+let activeSubtab = 'walkmark';
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById(tab + '-panel');
+  if (panel) panel.classList.add('active');
+  if (tab === 'calibrate') onShowCalibrate();
+  if (tab === 'navigate')  onShowNavigate();
+}
+
+function switchSubtab(sub) {
+  activeSubtab = sub;
+  document.querySelectorAll('.subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === sub));
+  document.querySelectorAll('.subpanel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById(sub + '-subpanel');
+  if (panel) panel.classList.add('active');
+  if (sub === 'walkmark') onShowWalkMark();
+  if (sub === 'refmap')   onShowRefMap();
+  if (sub === 'points')   renderPointsList();
+}
+
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+document.querySelectorAll('.subtab-btn').forEach(b => b.addEventListener('click', () => switchSubtab(b.dataset.subtab)));
+document.getElementById('btn-go-calibrate').addEventListener('click', () => switchTab('calibrate'));
+document.getElementById('btn-go-calibrate2').addEventListener('click', () => switchTab('calibrate'));
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+const uploadZone = document.getElementById('upload-zone');
+const fileInput  = document.getElementById('file-input');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadMapFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadMapFile(fileInput.files[0]);
+});
+
+document.getElementById('btn-replace-map').addEventListener('click', () => fileInput.click());
+
+async function loadMapFile(file) {
+  mapBlob = file;
+  if (mapObjectURL) URL.revokeObjectURL(mapObjectURL);
+  mapObjectURL = URL.createObjectURL(file);
+  await dbSet('mapImage', file);
+  setMapImage(mapObjectURL);
+  toast('Map image loaded', 'success');
+}
+
+function setMapImage(url) {
+  document.getElementById('map-preview-img').src = url;
+  document.getElementById('map-preview-wrap').style.display = 'block';
+  uploadZone.style.display = 'none';
+  document.getElementById('walkmark-img').src = url;
+  document.getElementById('refmap-img').src = url;
+  document.getElementById('nav-img').src = url;
+  updateStatusBar();
+}
+
+async function loadPersistedMap() {
+  const blob = await dbGet('mapImage');
+  if (!blob) return;
+  mapBlob = blob;
+  if (mapObjectURL) URL.revokeObjectURL(mapObjectURL);
+  mapObjectURL = URL.createObjectURL(blob);
+  setMapImage(mapObjectURL);
+}
+
+// ── Status bar ────────────────────────────────────────────────────────────────
+function updateStatusBar() {
+  document.getElementById('status-map').textContent = mapBlob ? 'Loaded' : 'Not loaded';
+  document.getElementById('status-points').textContent = points.length;
+  document.getElementById('points-count').textContent = points.length;
+  const ready = mapBlob && points.length >= 3;
+  document.getElementById('status-calib').textContent = ready ? `Ready (${points.length} pts)` : points.length < 3 ? `Need ${3 - points.length} more point(s)` : 'No map';
+  document.getElementById('status-calib').style.color = ready ? 'var(--success)' : 'var(--warn)';
+}
+
+// ── Walk & Mark ───────────────────────────────────────────────────────────────
+let walkMarkPZ = null;
+let walkMarkPins = null;
+let walkMarkPending = null;
+let walkMarkState = 'idle';
+
+function onShowCalibrate() {
+  if (activeSubtab === 'walkmark') onShowWalkMark();
+}
+
+function onShowWalkMark() {
+  const container = document.getElementById('walkmark-map');
+  const img = document.getElementById('walkmark-img');
+  const nomap = document.getElementById('walkmark-nomap');
+
+  if (!mapBlob) {
+    container.style.display = 'none';
+    nomap.style.display = 'flex';
+    return;
+  }
+  container.style.display = '';
+  nomap.style.display = 'none';
+
+  if (!walkMarkPZ) {
+    walkMarkPZ = createPanZoom(container, document.getElementById('walkmark-inner'), img, onWalkMarkTap);
+    walkMarkPins = makePinsOverlay(container, walkMarkPZ);
+  } else {
+    if (img.complete && img.naturalWidth) walkMarkPZ.fit();
+  }
+  walkMarkPins.refresh();
+}
+
+function onWalkMarkTap(imgPt) {
+  if (walkMarkState !== 'tap') return;
+  const { lat, lng, acc } = walkMarkPending;
+  const label = `P${points.length + 1}`;
+  const pt = { lat, lng, px: Math.round(imgPt.x), py: Math.round(imgPt.y), label, method: 'gps', accuracy: acc };
+  points.push(pt);
+  savePoints();
+  walkMarkPins.refresh();
+  walkMarkState = 'idle';
+  walkMarkPending = null;
+  updateWalkMarkUI();
+  updateStatusBar();
+  toast(`Point ${label} saved`, 'success');
+}
+
+document.getElementById('btn-mark-location').addEventListener('click', () => {
+  if (!mapBlob) { toast('Upload a map first', 'error'); return; }
+  if (!gpsPos)  { toast('Waiting for GPS fix…', 'error'); return; }
+  const { latitude: lat, longitude: lng, accuracy: acc } = gpsPos.coords;
+  walkMarkPending = { lat, lng, acc };
+  walkMarkState = 'tap';
+  updateWalkMarkUI();
+  toast('Now tap the corresponding spot on your map', 'info');
+});
+
+document.getElementById('btn-mark-cancel').addEventListener('click', () => {
+  walkMarkState = 'idle';
+  walkMarkPending = null;
+  updateWalkMarkUI();
+});
+
+function updateWalkMarkUI() {
+  const stateEl = document.getElementById('walkmark-state');
+  const btnMark = document.getElementById('btn-mark-location');
+  const btnCancel = document.getElementById('btn-mark-cancel');
+  if (walkMarkState === 'tap') {
+    stateEl.textContent = 'Tap the matching spot on your map';
+    stateEl.className = 'tap';
+    btnMark.style.display = 'none';
+    btnCancel.style.display = '';
+  } else {
+    stateEl.textContent = 'Walk to a recognisable point, then mark it';
+    stateEl.className = '';
+    btnMark.style.display = '';
+    btnCancel.style.display = 'none';
+  }
+}
+
+// ── Ref Map ───────────────────────────────────────────────────────────────────
+let refMapPZ = null;
+let refMapPins = null;
+let leafletMap = null;
+let leafletMarker = null;
+let refMapState = 'idle';
+let refMapPendingImg = null;
+let refMapPendingPin = null;
+
+function onShowRefMap() {
+  const container = document.getElementById('refmap-map-container');
+  const img = document.getElementById('refmap-img');
+  const nomap = document.getElementById('refmap-nomap');
+
+  if (!mapBlob) {
+    nomap.style.display = 'flex';
+  } else {
+    nomap.style.display = 'none';
+    if (!refMapPZ) {
+      refMapPZ = createPanZoom(container, document.getElementById('refmap-map-inner'), img, onRefMapImgTap);
+      refMapPins = makePinsOverlay(container, refMapPZ);
+    } else {
+      if (img.complete && img.naturalWidth) refMapPZ.fit();
+    }
+    refMapPins.refresh();
+  }
+
+  if (!leafletMap) {
+    setTimeout(initLeaflet, 50);
+  }
+}
+
+function initLeaflet() {
+  const el = document.getElementById('refmap-leaflet');
+  if (!el.offsetParent) { setTimeout(initLeaflet, 100); return; }
+  leafletMap = L.map('refmap-leaflet', { zoomControl: true }).setView([51.5, -0.1], 13);
+
+  const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © Esri — Source: Esri, USGS, NOAA',
+    maxZoom: 19
+  });
+
+  streets.addTo(leafletMap);
+  L.control.layers({ 'Street': streets, 'Satellite': satellite }, {}, { position: 'topright' }).addTo(leafletMap);
+
+  leafletMap.on('click', onLeafletClick);
+  if (gpsPos) {
+    leafletMap.setView([gpsPos.coords.latitude, gpsPos.coords.longitude], 16);
+  }
+}
+
+function onRefMapImgTap(imgPt) {
+  if (!mapBlob) return;
+  if (refMapState === 'idle' || refMapState === 'step1') {
+    refMapPendingImg = imgPt;
+    refMapState = 'step2';
+    if (refMapPendingPin) refMapPendingPin.el.remove();
+    const container = document.getElementById('refmap-map-container');
+    const { x, y } = refMapPZ.imageToContainer(imgPt.x, imgPt.y);
+    refMapPendingPin = document.createElement('div');
+    refMapPendingPin.className = 'pending-pin';
+    refMapPendingPin.style.cssText = `position:absolute;left:${x}px;top:${y}px;`;
+    container.appendChild(refMapPendingPin);
+    updateRefMapStateBar();
+    toast('Now click the same location on the OpenStreetMap below', 'info', 3500);
+  }
+}
+
+function onLeafletClick(e) {
+  if (refMapState !== 'step2') {
+    toast('Tap a point on your map first', 'info');
+    return;
+  }
+  const { lat, lng } = e.latlng;
+  if (leafletMarker) leafletMarker.remove();
+  leafletMarker = L.marker([lat, lng]).addTo(leafletMap);
+
+  const label = `P${points.length + 1}`;
+  const pt = {
+    lat, lng,
+    px: Math.round(refMapPendingImg.x),
+    py: Math.round(refMapPendingImg.y),
+    label, method: 'refmap'
+  };
+  points.push(pt);
+  savePoints();
+
+  if (refMapPendingPin) { refMapPendingPin.remove(); refMapPendingPin = null; }
+  refMapState = 'idle';
+  refMapPendingImg = null;
+  refMapPins.refresh();
+  updateRefMapStateBar();
+  updateStatusBar();
+  toast(`Point ${label} saved`, 'success');
+}
+
+function updateRefMapStateBar() {
+  const bar = document.getElementById('refmap-state-bar');
+  if (refMapState === 'step2') {
+    bar.textContent = 'Step 2: Click the same location on the OpenStreetMap';
+    bar.className = 'step2';
+  } else {
+    bar.textContent = 'Step 1: Tap a point on your map above';
+    bar.className = 'step1';
+  }
+}
+
+// ── Points list ───────────────────────────────────────────────────────────────
+function renderPointsList() {
+  const wrap = document.getElementById('points-list-wrap');
+  const noMsg = document.getElementById('no-points-msg');
+  wrap.querySelectorAll('.point-card').forEach(el => el.remove());
+
+  if (points.length === 0) {
+    noMsg.style.display = '';
+    return;
+  }
+  noMsg.style.display = 'none';
+
+  points.forEach((pt, i) => {
+    const card = document.createElement('div');
+    card.className = `point-card ${pt.method}`;
+    const accLabel = pt.accuracy != null
+      ? `<span class="pt-acc ${pt.accuracy < 10 ? 'good' : pt.accuracy < 30 ? 'ok' : 'bad'}">±${Math.round(pt.accuracy)}m GPS</span>`
+      : `<span class="pt-acc ok">ref map</span>`;
+    card.innerHTML = `
+      <div class="pt-badge">${i+1}</div>
+      <div class="pt-info">
+        <div class="pt-label">${pt.label || 'Point ' + (i+1)}</div>
+        <div class="pt-coords">
+          ${pt.lat.toFixed(6)}, ${pt.lng.toFixed(6)}<br>
+          px (${pt.px}, ${pt.py})
+        </div>
+        ${accLabel}
+      </div>
+      <button class="btn btn-ghost btn-sm" data-del="${i}" style="flex-shrink:0;color:var(--danger);border-color:var(--danger);">✕</button>
+    `;
+    wrap.appendChild(card);
+  });
+
+  wrap.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = +btn.dataset.del;
+      points.splice(idx, 1);
+      savePoints();
+      renderPointsList();
+      updateStatusBar();
+      walkMarkPins && walkMarkPins.refresh();
+      refMapPins && refMapPins.refresh();
+      updateNavGPS();
+    });
+  });
+}
+
+document.getElementById('btn-clear-points').addEventListener('click', () => {
+  if (!points.length) return;
+  if (!confirm(`Delete all ${points.length} control point(s)?`)) return;
+  points = [];
+  savePoints();
+  renderPointsList();
+  updateStatusBar();
+  walkMarkPins && walkMarkPins.refresh();
+  refMapPins && refMapPins.refresh();
+  updateNavGPS();
+  toast('All points cleared');
+});
+
+// ── Navigate ──────────────────────────────────────────────────────────────────
+let navPZ = null;
+let navReady = false;
+
+function onShowNavigate() {
+  const ready = mapBlob && points.length >= 3;
+  const calibNeeded = document.getElementById('calib-needed');
+  const navContainer = document.getElementById('nav-map-container');
+
+  if (!ready) {
+    calibNeeded.style.display = 'flex';
+    navContainer.style.pointerEvents = 'none';
+    const msg = document.getElementById('calib-needed-msg');
+    if (!mapBlob) msg.textContent = 'Upload a map image in Setup first.';
+    else msg.textContent = `Add ${3 - points.length} more control point(s) to start navigating.`;
+    return;
+  }
+
+  calibNeeded.style.display = 'none';
+  navContainer.style.pointerEvents = '';
+
+  const img = document.getElementById('nav-img');
+  if (!navPZ) {
+    navPZ = createPanZoom(navContainer, document.getElementById('nav-map-inner'), img, null);
+  } else {
+    if (img.complete && img.naturalWidth) navPZ.fit();
+  }
+
+  navReady = true;
+  updateNavGPS();
+}
+
+function updateNavGPS() {
+  if (!navReady || !navPZ) return;
+
+  const transform = buildTransform(points);
+  const dot = document.getElementById('gps-dot');
+  const accText = document.getElementById('nav-acc-text');
+  const navDot = document.getElementById('nav-gps-dot');
+  const marker = document.getElementById('gps-marker');
+  const accRing = document.getElementById('acc-ring');
+
+  if (!gpsPos || !transform) {
+    marker.style.display = 'none';
+    return;
+  }
+
+  const { latitude: lat, longitude: lng, accuracy: acc } = gpsPos.coords;
+  const imgPt = transform(lat, lng);
+
+  accText.textContent = `±${Math.round(acc)}m`;
+  if (acc < 10)      { navDot.style.background = 'var(--success)'; }
+  else if (acc < 30) { navDot.style.background = 'var(--warn)'; }
+  else               { navDot.style.background = 'var(--danger)'; }
+
+  const { x, y } = navPZ.imageToContainer(imgPt.x, imgPt.y);
+  marker.style.display = '';
+  marker.style.left = x + 'px';
+  marker.style.top  = y + 'px';
+
+  const img = document.getElementById('nav-img');
+  const { scale } = navPZ.getState();
+  const metersPerPx = estimateMetersPerPixel(lat, acc, imgPt, transform, scale, img);
+  const ringPx = Math.max(10, metersPerPx > 0 ? acc / metersPerPx : 10);
+  accRing.style.width  = (ringPx * 2) + 'px';
+  accRing.style.height = (ringPx * 2) + 'px';
+}
+
+function estimateMetersPerPixel(lat, acc, imgPt, transform, scale) {
+  const delta = 0.0001;
+  const pt2 = transform(lat + delta, gpsPos.coords.longitude);
+  const dy = Math.abs(pt2.y - imgPt.y);
+  if (dy < 0.001) return 0;
+  const metersPerDegLat = 111320;
+  const metersPerDelta = delta * metersPerDegLat;
+  const pxPerMeter = (dy * scale) / metersPerDelta;
+  return pxPerMeter > 0 ? 1 / pxPerMeter : 0;
+}
+
+document.getElementById('btn-center-me').addEventListener('click', () => {
+  if (!navPZ || !gpsPos || points.length < 3) return;
+  const transform = buildTransform(points);
+  if (!transform) return;
+  const { latitude: lat, longitude: lng } = gpsPos.coords;
+  const { x, y } = transform(lat, lng);
+  navPZ.centerOn(x, y);
+  updateNavGPS();
+});
+
+// Keep nav GPS dot up to date whenever panzoom changes — poll on rAF when navigate tab active
+let navRafId = null;
+let lastNavState = '';
+function navRaf() {
+  if (activeTab !== 'navigate') { navRafId = null; return; }
+  if (navPZ) {
+    const st = JSON.stringify(navPZ.getState());
+    if (st !== lastNavState) { lastNavState = st; updateNavGPS(); }
+  }
+  navRafId = requestAnimationFrame(navRaf);
+}
+
+const origSwitchTab = switchTab;
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    if (b.dataset.tab === 'navigate') {
+      if (!navRafId) navRafId = requestAnimationFrame(navRaf);
+    }
+  });
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+async function init() {
+  loadPoints();
+  updateStatusBar();
+  updateWalkMarkUI();
+  updateRefMapStateBar();
+  await loadPersistedMap();
+  updateStatusBar();
+  startGPS();
+}
+
+init();
+</script>
+</body>
+</html>
