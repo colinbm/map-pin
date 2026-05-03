@@ -814,9 +814,11 @@ function createPanZoom(container, inner, img, onTap) {
   let lastTouchDist = null, lastTouchMidX, lastTouchMidY;
   let touchMoved = false, touchStartX, touchStartY;
   let imgW = 0, imgH = 0;
+  let onTransform = null;
 
   function applyTransform() {
     inner.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`;
+    if (onTransform) onTransform();
   }
 
   function fit() {
@@ -964,7 +966,7 @@ function createPanZoom(container, inner, img, onTap) {
 
   window.addEventListener('resize', fit);
 
-  return { fit, centerOn, containerToImage, imageToContainer, getState: () => ({ scale, ox, oy }) };
+  return { fit, centerOn, containerToImage, imageToContainer, getState: () => ({ scale, ox, oy }), setOnTransform: fn => { onTransform = fn; } };
 }
 
 // ── Pins overlay ───────────────────────────────────────────────────────────────
@@ -1002,10 +1004,7 @@ function makePinsOverlay(container, pz) {
     render();
   }
 
-  container.addEventListener('scroll-update', render);
-
-  const origGetState = pz.getState;
-  const origFit = pz.fit;
+  pz.setOnTransform(render);
 
   return { render, addPin, removeAll, refresh };
 }
