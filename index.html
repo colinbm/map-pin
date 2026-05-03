@@ -777,7 +777,16 @@ function inv3(m) {
 
 function buildTransform(pts) {
   if (pts.length < 3) return null;
-  const A = pts.map(p => [p.lat, p.lng, 1]);
+  const n = pts.length;
+
+  // Z-score normalise lat/lng so ATA is well-conditioned regardless of
+  // absolute coordinate values or how small the calibration area is.
+  const mLat = pts.reduce((s, p) => s + p.lat, 0) / n;
+  const mLng = pts.reduce((s, p) => s + p.lng, 0) / n;
+  const sLat = Math.sqrt(pts.reduce((s, p) => s + (p.lat - mLat) ** 2, 0) / n) || 1e-7;
+  const sLng = Math.sqrt(pts.reduce((s, p) => s + (p.lng - mLng) ** 2, 0) / n) || 1e-7;
+
+  const A = pts.map(p => [(p.lat - mLat) / sLat, (p.lng - mLng) / sLng, 1]);
   const bx = pts.map(p => [p.px]);
   const by = pts.map(p => [p.py]);
   const AT = matT(A);
@@ -788,8 +797,8 @@ function buildTransform(pts) {
   const cx = matMul(coeff, bx).map(r => r[0]);
   const cy = matMul(coeff, by).map(r => r[0]);
   return (lat, lng) => ({
-    x: cx[0]*lat + cx[1]*lng + cx[2],
-    y: cy[0]*lat + cy[1]*lng + cy[2]
+    x: cx[0] * (lat - mLat) / sLat + cx[1] * (lng - mLng) / sLng + cx[2],
+    y: cy[0] * (lat - mLat) / sLat + cy[1] * (lng - mLng) / sLng + cy[2]
   });
 }
 
