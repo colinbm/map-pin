@@ -355,7 +355,6 @@ html, body {
 
 /* ── Ref Map subpanel ── */
 #refmap-subpanel {
-  display: flex;
   flex-direction: column;
 }
 #refmap-upload-map {
@@ -667,7 +666,7 @@ html, body {
     </div>
 
     <!-- Points List -->
-    <div id="points-subpanel" class="subpanel" style="display:flex;flex-direction:column;">
+    <div id="points-subpanel" class="subpanel">
       <div id="points-list-wrap" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;">
         <div class="no-points" id="no-points-msg">No control points yet.<br>Add them in Walk &amp; Mark or Ref Map.</div>
       </div>
@@ -1843,8 +1842,8 @@ async function init() {
   renderMapsList();
   startGPS();
 
-  // On first launch (no maps yet), open the Maps tab so the user can create one
-  if (!activeMapId) switchTab('maps');
+  // Always set the initial tab explicitly rather than relying on the HTML default
+  switchTab(activeMapId ? 'setup' : 'maps');
 }
 
 init();
