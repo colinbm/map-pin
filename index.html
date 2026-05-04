@@ -55,11 +55,16 @@ html, body {
   flex-shrink: 0;
   z-index: 10;
 }
-#header h1 {
+#header-map-name {
   font-size: 17px;
   font-weight: 700;
   letter-spacing: .3px;
   color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #gps-badge {
   margin-left: auto;
@@ -68,6 +73,7 @@ html, body {
   gap: 6px;
   font-size: 12px;
   color: var(--text2);
+  flex-shrink: 0;
 }
 #gps-dot {
   width: 8px; height: 8px;
@@ -140,6 +146,59 @@ html, body {
 }
 .subpanel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
 .subpanel.active { display: flex; }
+
+/* ── Maps Panel ── */
+#maps-panel {
+  overflow-y: auto;
+  padding: 16px;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.map-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius);
+  padding: 14px 14px 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.map-card:hover { background: #282c42; }
+.map-card.active { border-left-color: var(--accent); }
+.map-card-info { flex: 1; min-width: 0; }
+.map-card-name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-card-meta { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.map-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.map-card-btn {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text2);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.map-card-btn:hover { color: var(--text); border-color: var(--text2); }
+.map-card-btn.del:hover { color: var(--danger); border-color: var(--danger); }
+#no-maps-msg {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text2);
+  font-size: 14px;
+}
+#maps-new-btn {
+  margin-top: auto;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+}
 
 /* ── Setup Panel ── */
 #setup-panel {
@@ -513,18 +572,25 @@ html, body {
 <div id="app">
 
   <div id="header">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent);flex-shrink:0;">
       <polygon points="3 11 22 2 13 21 11 13 3 11"/>
     </svg>
-    <h1>MapPin</h1>
+    <span id="header-map-name">MapPin</span>
     <div id="gps-badge">
       <div id="gps-dot"></div>
       <span id="gps-acc-text">No GPS</span>
     </div>
   </div>
 
+  <!-- MAPS PANEL -->
+  <div id="maps-panel" class="panel">
+    <div id="maps-list-inner"></div>
+    <div id="no-maps-msg" style="display:none">No maps yet.<br>Tap ＋ New Map to get started.</div>
+    <button class="btn btn-primary btn-full" id="maps-new-btn">＋ New Map</button>
+  </div>
+
   <!-- SETUP PANEL -->
-  <div id="setup-panel" class="panel active">
+  <div id="setup-panel" class="panel">
     <div id="upload-zone" class="upload-zone">
       <div class="icon">🗺️</div>
       <strong>Upload Map Image</strong>
@@ -552,7 +618,7 @@ html, body {
       <h3>How to use</h3>
       <p style="font-size:13px; color:var(--text2); line-height:1.7">
         1. Upload a map image above<br>
-        2. Add 3+ control points in <strong>Calibrate</strong><br>
+        2. Add 3+ control points in <strong>Cal.</strong><br>
         3. Use <strong>Navigate</strong> for live GPS tracking
       </p>
     </div>
@@ -561,7 +627,7 @@ html, body {
   <!-- CALIBRATE PANEL -->
   <div id="calibrate-panel" class="panel">
     <div id="subtabs">
-      <button class="subtab-btn active" data-subtab="walkmark">Walk & Mark</button>
+      <button class="subtab-btn active" data-subtab="walkmark">Walk &amp; Mark</button>
       <button class="subtab-btn" data-subtab="refmap">Ref Map</button>
       <button class="subtab-btn" data-subtab="points">Points (<span id="points-count">0</span>)</button>
     </div>
@@ -604,7 +670,7 @@ html, body {
     <!-- Points List -->
     <div id="points-subpanel" class="subpanel" style="display:flex;flex-direction:column;">
       <div id="points-list-wrap" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;">
-        <div class="no-points" id="no-points-msg">No control points yet.<br>Add them in Walk & Mark or Ref Map.</div>
+        <div class="no-points" id="no-points-msg">No control points yet.<br>Add them in Walk &amp; Mark or Ref Map.</div>
       </div>
       <div style="padding:12px;border-top:1px solid var(--border);background:var(--surface2);">
         <button class="btn btn-danger btn-sm" id="btn-clear-points" style="width:100%">Clear All Points</button>
@@ -648,6 +714,12 @@ html, body {
 
   <!-- Bottom tabs -->
   <div id="tabs">
+    <button class="tab-btn" data-tab="maps">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>
+      </svg>
+      Maps
+    </button>
     <button class="tab-btn active" data-tab="setup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
@@ -658,7 +730,7 @@ html, body {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
       </svg>
-      Calibrate
+      Cal.
     </button>
     <button class="tab-btn" data-tab="navigate">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -716,21 +788,238 @@ async function dbDel(key) {
   });
 }
 
-// ── State ──────────────────────────────────────────────────────────────────────
+// ── Multi-map state ────────────────────────────────────────────────────────────
+let maps = [];
+let activeMapId = null;
+
 let mapBlob = null;
 let mapObjectURL = null;
 let points = [];
 let gpsPos = null;
 let gpsWatchId = null;
 
-const LS_KEY = 'mappin_points';
+const LS_DATA_KEY = 'mappin_data';
 
-function loadPoints() {
-  try { points = JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { points = []; }
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(LS_DATA_KEY);
+    if (!raw) { maps = []; activeMapId = null; return; }
+    const data = JSON.parse(raw);
+    maps = data.maps || [];
+    activeMapId = data.activeMapId || null;
+  } catch {
+    maps = [];
+    activeMapId = null;
+  }
+}
+
+function saveData() {
+  localStorage.setItem(LS_DATA_KEY, JSON.stringify({ version: 2, maps, activeMapId }));
+}
+
+function activeMap() {
+  return maps.find(m => m.id === activeMapId) || null;
 }
 
 function savePoints() {
-  localStorage.setItem(LS_KEY, JSON.stringify(points));
+  const m = activeMap();
+  if (m) { m.points = [...points]; saveData(); }
+}
+
+function createMap(name) {
+  const id = generateId();
+  maps.push({ id, name, points: [], createdAt: Date.now() });
+  activeMapId = id;
+  points = [];
+  saveData();
+  return id;
+}
+
+function deleteMap(id) {
+  maps = maps.filter(m => m.id !== id);
+  dbDel('mapImage_' + id);
+  if (activeMapId === id) {
+    activeMapId = maps.length ? maps[maps.length - 1].id : null;
+    // reset runtime state
+    if (mapObjectURL) { URL.revokeObjectURL(mapObjectURL); mapObjectURL = null; }
+    mapBlob = null;
+    points = [];
+    if (activeMapId) {
+      // load newly-active map silently
+      _loadMapById(activeMapId);
+    } else {
+      _clearMapUI();
+    }
+  }
+  saveData();
+  renderMapsList();
+  updateHeaderMapName();
+}
+
+function renameMap(id, name) {
+  const m = maps.find(m => m.id === id);
+  if (m) { m.name = name; saveData(); }
+  renderMapsList();
+  updateHeaderMapName();
+}
+
+async function selectMap(id) {
+  activeMapId = id;
+  const m = activeMap();
+  if (!m) return;
+
+  // Load points
+  points = m.points ? [...m.points] : [];
+
+  // Revoke old object URL
+  if (mapObjectURL) { URL.revokeObjectURL(mapObjectURL); mapObjectURL = null; }
+  mapBlob = null;
+
+  // Load image from IndexedDB
+  const blob = await dbGet('mapImage_' + id);
+  if (blob) {
+    mapBlob = blob;
+    mapObjectURL = URL.createObjectURL(blob);
+    setMapImage(mapObjectURL);
+  } else {
+    _clearMapUI();
+  }
+
+  // Reset calibration state
+  walkMarkState = 'idle';
+  walkMarkPending = null;
+  refMapState = 'idle';
+  refMapPendingImg = null;
+
+  // Reset panzoom instances so they reinitialise on next tab show
+  walkMarkPZ = null;
+  walkMarkPins = null;
+  refMapPZ = null;
+  refMapPins = null;
+  navPZ = null;
+  navReady = false;
+
+  // Re-render
+  renderPointsList();
+  updateStatusBar();
+  updateHeaderMapName();
+  renderMapsList();
+  saveData();
+
+  // Switch to setup tab
+  switchTab('setup');
+}
+
+function _clearMapUI() {
+  document.getElementById('map-preview-wrap').style.display = 'none';
+  document.getElementById('upload-zone').style.display = '';
+  document.getElementById('walkmark-img').src = '';
+  document.getElementById('refmap-img').src = '';
+  document.getElementById('nav-img').src = '';
+  updateStatusBar();
+}
+
+async function _loadMapById(id) {
+  const m = maps.find(mm => mm.id === id);
+  if (!m) return;
+  points = m.points ? [...m.points] : [];
+  const blob = await dbGet('mapImage_' + id);
+  if (blob) {
+    mapBlob = blob;
+    mapObjectURL = URL.createObjectURL(blob);
+    setMapImage(mapObjectURL);
+  } else {
+    _clearMapUI();
+  }
+  renderPointsList();
+  updateStatusBar();
+  updateHeaderMapName();
+}
+
+function updateHeaderMapName() {
+  const m = activeMap();
+  document.getElementById('header-map-name').textContent = m ? m.name : 'MapPin';
+}
+
+// ── Maps list rendering ────────────────────────────────────────────────────────
+function renderMapsList() {
+  const inner = document.getElementById('maps-list-inner');
+  const noMsg = document.getElementById('no-maps-msg');
+  inner.innerHTML = '';
+
+  if (maps.length === 0) {
+    noMsg.style.display = '';
+    return;
+  }
+  noMsg.style.display = 'none';
+
+  maps.forEach(m => {
+    const ptCount = m.points ? m.points.length : 0;
+    // We need to know if image exists — we track this by whether the active map
+    // has an image (for active map only, for others we show point count only)
+    const isActive = m.id === activeMapId;
+    const hasImage = isActive ? !!mapBlob : null; // unknown for inactive
+
+    let statusChip = '';
+    if (isActive && !mapBlob) {
+      statusChip = `<span class="pt-acc bad">No image</span>`;
+    } else if (ptCount >= 3) {
+      statusChip = `<span class="pt-acc good">Ready</span>`;
+    } else {
+      statusChip = `<span class="pt-acc ok">${ptCount} pt${ptCount !== 1 ? 's' : ''} — needs more</span>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'map-card' + (isActive ? ' active' : '');
+    card.dataset.mapId = m.id;
+    card.innerHTML = `
+      <div class="map-card-info">
+        <div class="map-card-name">${escapeHtml(m.name)}</div>
+        <div class="map-card-meta">${statusChip}</div>
+      </div>
+      <div class="map-card-actions">
+        <button class="map-card-btn rename" title="Rename" data-id="${m.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button class="map-card-btn del" title="Delete" data-id="${m.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    `;
+
+    // Clicking the card body (not buttons) selects the map
+    card.addEventListener('click', e => {
+      if (e.target.closest('.map-card-btn')) return;
+      selectMap(m.id);
+    });
+
+    card.querySelector('.rename').addEventListener('click', e => {
+      e.stopPropagation();
+      const newName = prompt('Map name:', m.name);
+      if (newName && newName.trim()) renameMap(m.id, newName.trim());
+    });
+
+    card.querySelector('.del').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!confirm(`Delete "${m.name}" and all its data?`)) return;
+      deleteMap(m.id);
+    });
+
+    inner.appendChild(card);
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Matrix math ───────────────────────────────────────────────────────────────
@@ -1069,6 +1358,7 @@ function switchTab(tab) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById(tab + '-panel');
   if (panel) panel.classList.add('active');
+  if (tab === 'maps')      renderMapsList();
   if (tab === 'calibrate') onShowCalibrate();
   if (tab === 'navigate')  onShowNavigate();
 }
@@ -1088,6 +1378,20 @@ document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', (
 document.querySelectorAll('.subtab-btn').forEach(b => b.addEventListener('click', () => switchSubtab(b.dataset.subtab)));
 document.getElementById('btn-go-calibrate').addEventListener('click', () => switchTab('calibrate'));
 document.getElementById('btn-go-calibrate2').addEventListener('click', () => switchTab('calibrate'));
+
+// Maps new button
+document.getElementById('maps-new-btn').addEventListener('click', () => {
+  const n = maps.length + 1;
+  const name = prompt('Map name:', `Map ${n}`);
+  if (name === null) return; // cancelled
+  const trimmed = name.trim() || `Map ${n}`;
+  createMap(trimmed);
+  renderMapsList();
+  updateHeaderMapName();
+  _clearMapUI();
+  updateStatusBar();
+  switchTab('setup');
+});
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 const uploadZone = document.getElementById('upload-zone');
@@ -1110,11 +1414,18 @@ fileInput.addEventListener('change', () => {
 document.getElementById('btn-replace-map').addEventListener('click', () => fileInput.click());
 
 async function loadMapFile(file) {
+  // If no active map, create one first
+  if (!activeMapId) {
+    createMap('New Map');
+    renderMapsList();
+    updateHeaderMapName();
+  }
   mapBlob = file;
   if (mapObjectURL) URL.revokeObjectURL(mapObjectURL);
   mapObjectURL = URL.createObjectURL(file);
-  await dbSet('mapImage', file);
+  await dbSet('mapImage_' + activeMapId, file);
   setMapImage(mapObjectURL);
+  renderMapsList(); // refresh status chips
   toast('Map image loaded', 'success');
 }
 
@@ -1126,15 +1437,6 @@ function setMapImage(url) {
   document.getElementById('refmap-img').src = url;
   document.getElementById('nav-img').src = url;
   updateStatusBar();
-}
-
-async function loadPersistedMap() {
-  const blob = await dbGet('mapImage');
-  if (!blob) return;
-  mapBlob = blob;
-  if (mapObjectURL) URL.revokeObjectURL(mapObjectURL);
-  mapObjectURL = URL.createObjectURL(blob);
-  setMapImage(mapObjectURL);
 }
 
 // ── Status bar ────────────────────────────────────────────────────────────────
@@ -1191,6 +1493,7 @@ function onWalkMarkTap(imgPt) {
   walkMarkPending = null;
   updateWalkMarkUI();
   updateStatusBar();
+  renderMapsList();
   toast(`Point ${label} saved`, 'success');
 }
 
@@ -1324,6 +1627,7 @@ function onLeafletClick(e) {
   refMapPins.refresh();
   updateRefMapStateBar();
   updateStatusBar();
+  renderMapsList();
   toast(`Point ${label} saved`, 'success');
 }
 
@@ -1378,6 +1682,7 @@ function renderPointsList() {
       savePoints();
       renderPointsList();
       updateStatusBar();
+      renderMapsList();
       walkMarkPins && walkMarkPins.refresh();
       refMapPins && refMapPins.refresh();
       updateNavGPS();
@@ -1392,6 +1697,7 @@ document.getElementById('btn-clear-points').addEventListener('click', () => {
   savePoints();
   renderPointsList();
   updateStatusBar();
+  renderMapsList();
   walkMarkPins && walkMarkPins.refresh();
   refMapPins && refMapPins.refresh();
   updateNavGPS();
@@ -1434,7 +1740,6 @@ function updateNavGPS() {
   if (!navReady || !navPZ) return;
 
   const transform = buildTransform(points);
-  const dot = document.getElementById('gps-dot');
   const accText = document.getElementById('nav-acc-text');
   const navDot = document.getElementById('nav-gps-dot');
   const marker = document.getElementById('gps-marker');
@@ -1499,7 +1804,6 @@ function navRaf() {
   navRafId = requestAnimationFrame(navRaf);
 }
 
-const origSwitchTab = switchTab;
 document.querySelectorAll('.tab-btn').forEach(b => {
   b.addEventListener('click', () => {
     if (b.dataset.tab === 'navigate') {
@@ -1510,13 +1814,38 @@ document.querySelectorAll('.tab-btn').forEach(b => {
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 async function init() {
-  loadPoints();
-  updateStatusBar();
+  // Migration: v1 → v2
+  const oldPts = localStorage.getItem('mappin_points');
+  if (oldPts && !localStorage.getItem(LS_DATA_KEY)) {
+    const id = generateId();
+    const pts = (() => { try { return JSON.parse(oldPts) || []; } catch { return []; } })();
+    localStorage.setItem(LS_DATA_KEY, JSON.stringify({
+      version: 2,
+      maps: [{ id, name: 'My Map', points: pts, createdAt: Date.now() }],
+      activeMapId: id
+    }));
+    localStorage.removeItem('mappin_points');
+    // Rename IndexedDB key (best effort, non-blocking)
+    dbGet('mapImage').then(blob => { if (blob) { dbSet('mapImage_' + id, blob); dbDel('mapImage'); } });
+  }
+
+  loadData();
   updateWalkMarkUI();
   updateRefMapStateBar();
-  await loadPersistedMap();
-  updateStatusBar();
+
+  // Load active map's image and points
+  if (activeMapId) {
+    await _loadMapById(activeMapId);
+  } else {
+    updateStatusBar();
+  }
+
+  updateHeaderMapName();
+  renderMapsList();
   startGPS();
+
+  // On first launch (no maps yet), open the Maps tab so the user can create one
+  if (!activeMapId) switchTab('maps');
 }
 
 init();
