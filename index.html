@@ -865,6 +865,40 @@ function renameMap(id, name) {
   updateHeaderMapName();
 }
 
+async function exportMap(id) {
+  const m = maps.find(mm => mm.id === id);
+  if (!m) return;
+
+  const payload = {
+    version: 1,
+    name: m.name,
+    exportedAt: new Date().toISOString(),
+    points: m.points || []
+  };
+
+  const blob = await dbGet('mapImage_' + id);
+  if (blob) {
+    payload.image = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.onerror = rej;
+      reader.readAsDataURL(blob);
+    });
+    payload.imageType = blob.type || 'image/jpeg';
+  }
+
+  const jsonBlob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(jsonBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = m.name.replace(/[^a-z0-9_\-. ]/gi, '_') + '.mappin.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Exported ' + m.name, 'success');
+}
+
 async function selectMap(id) {
   activeMapId = id;
   const m = activeMap();
@@ -986,6 +1020,13 @@ function renderMapsList() {
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
         </button>
+        <button class="map-card-btn export" title="Export" data-id="${m.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
         <button class="map-card-btn del" title="Delete" data-id="${m.id}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -1004,6 +1045,11 @@ function renderMapsList() {
       e.stopPropagation();
       const newName = prompt('Map name:', m.name);
       if (newName && newName.trim()) renameMap(m.id, newName.trim());
+    });
+
+    card.querySelector('.export').addEventListener('click', e => {
+      e.stopPropagation();
+      exportMap(m.id);
     });
 
     card.querySelector('.del').addEventListener('click', e => {
