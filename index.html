@@ -192,7 +192,12 @@ html, body {
   color: var(--text2);
   font-size: 14px;
 }
-#maps-new-btn {
+#maps-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
   margin-top: auto;
   flex-shrink: 0;
   position: sticky;
@@ -584,7 +589,11 @@ html, body {
   <div id="maps-panel" class="panel">
     <div id="maps-list-inner"></div>
     <div id="no-maps-msg" style="display:none">No maps yet.<br>Tap ＋ New Map to get started.</div>
-    <button class="btn btn-primary btn-full" id="maps-new-btn">＋ New Map</button>
+    <div id="maps-footer">
+      <button class="btn btn-primary" style="flex:1" id="maps-new-btn">＋ New Map</button>
+      <button class="btn btn-ghost" style="flex:1" id="maps-import-btn">↑ Import</button>
+      <input type="file" id="maps-import-input" accept=".json" style="display:none">
+    </div>
   </div>
 
   <!-- SETUP PANEL -->
@@ -897,6 +906,37 @@ async function exportMap(id) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   toast('Exported ' + m.name, 'success');
+}
+
+async function importMap(file) {
+  let payload;
+  try { payload = JSON.parse(await file.text()); } catch { toast('Could not parse file', 'error'); return; }
+  if (!payload.version || !Array.isArray(payload.points)) { toast('Not a valid .mappin.json file', 'error'); return; }
+
+  const name = payload.name || 'Imported Map';
+  const id = createMap(name);
+
+  const m = activeMap();
+  m.points = payload.points;
+  points = [...payload.points];
+  saveData();
+
+  if (payload.image) {
+    try {
+      const blob = await fetch(payload.image).then(r => r.blob());
+      mapBlob = blob;
+      if (mapObjectURL) URL.revokeObjectURL(mapObjectURL);
+      mapObjectURL = URL.createObjectURL(blob);
+      await dbSet('mapImage_' + id, blob);
+      setMapImage(mapObjectURL);
+    } catch { toast('Image could not be restored', 'error'); }
+  }
+
+  renderMapsList();
+  updateHeaderMapName();
+  updateStatusBar();
+  switchTab('setup');
+  toast(`Imported "${name}"`, 'success');
 }
 
 async function selectMap(id) {
@@ -1423,7 +1463,14 @@ document.querySelectorAll('.subtab-btn').forEach(b => b.addEventListener('click'
 document.getElementById('btn-go-calibrate').addEventListener('click', () => switchTab('calibrate'));
 document.getElementById('btn-go-calibrate2').addEventListener('click', () => switchTab('calibrate'));
 
-// Maps new button
+// Maps new / import buttons
+document.getElementById('maps-import-btn').addEventListener('click', () => {
+  document.getElementById('maps-import-input').click();
+});
+document.getElementById('maps-import-input').addEventListener('change', e => {
+  if (e.target.files[0]) { importMap(e.target.files[0]); e.target.value = ''; }
+});
+
 document.getElementById('maps-new-btn').addEventListener('click', () => {
   const n = maps.length + 1;
   const name = prompt('Map name:', `Map ${n}`);
